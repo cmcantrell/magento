@@ -1,0 +1,37 @@
+# Don't include any temporary files and other unimportant things
+*.log
+*.bak
+*.bak.*
+*.thumbs/
+.DS_Store
+Thumbs.db
+.svn
+*.swp
+
+# IDE files and such
+nbproject
+
+# NEVER commit this file, as it may vary per server. Instead, make a copy like
+# local.xml.dev or local.xml.prod. This prevents things from breaking when
+# deploy or pulling down changes.  Also be careful about storing db credentials.
+app/etc/local.xml
+
+# The same thing applies to .htaccess
+/.htaccess
+
+# Other paths and files to ignore
+# Other `media` paths might need to be added
+downloader/.cache
+downloader/cache.cfg
+media/catalog
+media/css
+media/css_secure
+media/js
+media/import
+media/tmp
+media/uploads
+media/wysiwyg
+var
+
+# The sitemap should be auto-generated
+sitemap.xml
