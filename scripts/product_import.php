@@ -66,7 +66,7 @@ class Magento_Product_Import_Script extends Mage_Shell_Abstract
 	} // end __construct()
 
 	/*
-	*
+	*	@description 				program run function
 	*
 	*
 	* 
@@ -101,12 +101,6 @@ class Magento_Product_Import_Script extends Mage_Shell_Abstract
 		echo "finsihed in " . date('i:s',(time() - $scriptStart)) . PHP_EOL;
 	}// end run()
 
-	/*
-	*
-	*
-	*
-	* 
-	 */
 	public function usageHelp()
     {
     	// echo '@Magento_Product_Import_Script->usageHelp()'.PHP_EOL;
@@ -118,9 +112,10 @@ USAGE;
     }// end usageHelp() 
 
     /*
-	*
-	*
-	*
+	*	@description 				saves product
+	*   @params 					$productData(array) - array of attribute names and values
+	*   @params 					$update(bool) - update product if exists(future feature not implemented)
+	*   @return 					(bool)
 	* 
 	 */
     private function saveProductData($productData=array(), $update=false){
@@ -132,6 +127,8 @@ USAGE;
     		if(!$update):
 	    		echo "Product " . $productData['name'] . " with SKU: " . $productData['sku'] . " already exists. This product will be omitted.".PHP_EOL;
 	    		return false;
+	    	else:
+	    		// update existing product implementation
 	    	endif;
 		}else{
 			// set product site ids
@@ -226,9 +223,10 @@ USAGE;
     }
 
     /*
-     *
-     *
-     *
+     *	@description 				sets up category paths associated with product
+     *  @params 					$categoryPaths(array) - set of category paths deliniated with a /, ex. 'Root/Category/Sub-category'
+     *  @params 					$websiteIds(array) - set of ids to assign the categories under
+     *  @return 					(array) category ids found/created or false on failure
      * 
      */
     private function setUpCategories($categoryPaths=array(), $websiteIds=array(1)){
@@ -255,7 +253,7 @@ USAGE;
 				$categoryModel->addData($categoryData);
         		try {
         	  		$categoryModel->save();
-        	  		echo $category_name . " created on store id ". $storeId .PHP_EOL;
+        	  		echo $categoryData['name'] . " created on store id ". $storeId .PHP_EOL;
         	  		return $categoryModel->getId();
 				} catch (Exception $e){
 					echo "ERROR: $e".PHP_EOL;
@@ -263,6 +261,7 @@ USAGE;
 				}
 			}
 		endif;
+
 		$newCats 		= 0;
 		foreach($categoryPaths as $cPath):
 			$category_list  = explode('/',$cPath);
@@ -305,15 +304,13 @@ USAGE;
 		return array_unique($categoryIDs);
     }
 
-  
-
 	/*
-    *
-    *
-    *
+    *	@description 				calls external url, downloads and saves resource
+    *   @params 					$data(string) - resource path relative to root directory
+    *   @return 					new path to resource or false on failure
     * 
      */
-    private function curlResource($data, $size="small"){
+    private function curlResource($data){
     	// echo '@Magento_Product_Import_Script->curlResource()'.PHP_EOL;
     	if(!$this->_argname[1] ){ return false; }
     	$resourceUrl 		= $this->_argname[1];
@@ -368,8 +365,8 @@ USAGE;
     }    
 
     /*
-    *
-    *
+    *	@description 				map for associating old website and store names to new 
+    *   @return 					(array)
     *
     * 
      */
@@ -386,8 +383,8 @@ USAGE;
     }
 
     /*
-	*
-	*
+	*	@description 				returns nested array of website ids and associated stores
+	*   @return 					(array)
 	*
 	* 
 	 */
@@ -416,7 +413,7 @@ USAGE;
 
 
     /*
-	*
+	*	@description 				opens and returns file handle
 	*
 	*
 	* 
@@ -431,9 +428,9 @@ USAGE;
     } // end getFileHandle()
 
     /*
-	*
-	*
-	*
+	*	@description 				builds multi-dimensional array of product attributes and values
+	*   @params 					.csv file handle returned from fopen call
+	*   @return 					(array) collection of product associative arrays attribute = value
 	* 
 	 */
     private function buildProductDataFromCSV($handle){
@@ -482,9 +479,9 @@ USAGE;
     } // end buildProductData()
 
     /*
-	*
-	*
-	*
+	*	@description 			validate product data, removes product from input array if invalid
+	*   @params 				(array) set of products
+	*   @return                 (array) set of products
 	* 
 	 */
     private function validateProductData($productData = array()){
@@ -495,7 +492,7 @@ USAGE;
     		$productData[$i]['sku_type']			= 0;
   			$data['status'] 						= $data['status'] !== 0 ? (int)1 : (int)0;
   			$productData[$i]['status']				= $data['status'];
-  			$productData[$i] 						= $this->setUpStockData($this->setUpPriceData($productData[$i]));
+  			$productData[$i] 						= $this->setUpStockData($this->setUpPriceData($this->setUpShippingData($productData[$i])));
   			$data['short_description'] 				= isset($data['short_description']) ? $data['short_description'] : $data['name'];
   			$productData[$i]['short_description'] 	= $data['short_description'];
     		$required 								= $this->getRequiredAttributes($data['attribute_set']);
@@ -528,9 +525,9 @@ USAGE;
     } // end validateProductData()
 
     /*
-	*
-	*
-	*
+	*	@description 			build shipping data for a product
+	*   @params 				(array)product data
+	*   @return 				(array)product data
 	* 
 	 */
     private function setUpShippingData($productData=array()){
@@ -539,10 +536,10 @@ USAGE;
     	return $productData;
     }
 
-    /*
-	*
-	*
-	*
+     /*
+	*	@description 			build price data for a product
+	*   @params 				(array)product data
+	*   @return 				(array)product data
 	* 
 	 */
     private function setUpPriceData($productData=array()){
@@ -554,9 +551,9 @@ USAGE;
     }
 
     /*
-	*
-	*
-	*
+	*	@description 			build stock data for a product
+	*   @params 				(array)product data
+	*   @return 				(array)product data
 	* 
 	 */
     private function setUpStockData($data=array()){
@@ -580,9 +577,9 @@ USAGE;
     }
 
     /*
-	*
-	*
-	*
+	*	@description 			get required attributes for a attribute set by name
+	*   @parameters 			valid attribute set name
+	*   @return 				array of required attribute field names
 	* 
 	 */
     private function getRequiredAttributes($attributeSetName="Default"){
@@ -600,9 +597,9 @@ USAGE;
     }
 
     /*
-    *
-    *
-    *
+    *	@description 				convert low-dash field names to camel case for Magento Model use
+    *   @params 					string field name
+    *   @return 					camel case string
     * 
      */
     private function convertFieldName($str) {
