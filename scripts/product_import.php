@@ -8,7 +8,7 @@ if(!require_once __MAGENTO__ . '/../shell/abstract.php'):
 endif; 
 
 
-// delete all categories
+// delete all categories and products (for testing)
 function deleteAllCategories(){
 	require_once '../app/Mage.php';
 	Mage::app()->setCurrentStore(Mage::getModel('core/store')->load(Mage_Core_Model_App::ADMIN_STORE_ID));
@@ -72,6 +72,7 @@ class Magento_Product_Import_Script extends Mage_Shell_Abstract
 	* 
 	 */
 	public function run(){
+		// echo '@Magento_Product_Import_Script->run()'.PHP_EOL;
 		$scriptStart			= time();
 		echo "start..." . PHP_EOL;
 		// get filename
@@ -92,8 +93,9 @@ class Magento_Product_Import_Script extends Mage_Shell_Abstract
 				endif;
 			endforeach;
 		}else{
-			echo "Could not open import file '".$importFile."'. Ensure file exists and current user has proper permissions to read the file." . PHP_EOL;
+			echo "Could not open import file '".$argv[2]."'. Ensure file exists and current user has proper permissions to read the file." . PHP_EOL;
 			echo $this->usageHelp(),PHP_EOL;
+			die();
 		}
 		echo $succ . " products imported successfully with " . $err . " errors.";
 		echo "finsihed in " . date('i:s',(time() - $scriptStart)) . PHP_EOL;
@@ -107,6 +109,7 @@ class Magento_Product_Import_Script extends Mage_Shell_Abstract
 	 */
 	public function usageHelp()
     {
+    	// echo '@Magento_Product_Import_Script->usageHelp()'.PHP_EOL;
         return <<<USAGE
 Usage:		  				php -f [scriptFileName].php [oldUrl] [importFileName].csv 
 -oldUrl							full url of exported site for file resources with trailing slash.  Must be included for export of images and other resource files.
@@ -121,12 +124,13 @@ USAGE;
 	* 
 	 */
     private function saveProductData($productData=array(), $update=false){
+    	// echo '@Magento_Product_Import_Script->saveProductData()'.PHP_EOL;
     	// check if product sku already exists
     	$productModel 					= Mage::getModel('catalog/product');
     	$preProduct 					= $productModel->loadByAttribute('sku', $productData['sku']);
     	if($preProduct){
     		if(!$update):
-	    		echo "A product with SKU: " . $productData['sku'] . " already exists. This product will be omitted.";
+	    		echo "Product " . $productData['name'] . " with SKU: " . $productData['sku'] . " already exists. This product will be omitted.".PHP_EOL;
 	    		return false;
 	    	endif;
 		}else{
@@ -161,7 +165,7 @@ USAGE;
 			endforeach;
 			// set to default when all else fails
 			if(count($websiteIds) < 1):
-				$websiteIds[] 		= array(Mage::app()->getWebsite(true)->getDefaultGroup()->getDefaultStoreId());
+				$websiteIds[] 		= Mage::app()->getWebsite()->getDefaultGroup()->getDefaultStoreId();
 			endif;
 			$productData['product_websites'] 		= $websiteIds;
 			$productModel->setWebsiteIds($websiteIds);
@@ -171,6 +175,9 @@ USAGE;
 				$productData['attribute_set_id'] 			= isset($data['attribute_set_id']) ? $data['attribute_set_id'] : (isset($data['attribute_set']) ? Mage::getModel('eav/entity_attribute_set')->getCollection()->setEntityTypeFilter($entityTypeId)->addFieldToFilter('attribute_set_name', $data['attribute_set'])->getFirstItem()->getAttributeSetId() : 4 );
 			endforeach;
 			
+			// set stock data
+			$productModel->setStockData($productData['stockData']);
+
 			// set attributes
 			$directSet 					= array('sku','name','description','short_description','price','type','attribute_set_id','weight','tax_class_id','visibility','status');
 			foreach($productData as $field=>$data):
@@ -225,7 +232,7 @@ USAGE;
      * 
      */
     private function setUpCategories($categoryPaths=array(), $websiteIds=array(1)){
-
+    	// echo '@Magento_Product_Import_Script->setUpCategories()'.PHP_EOL;
     	$categoryModel			= Mage::getModel('catalog/category');
     	$localViews  			= $this->getLocalViews();
     	$websiteId 				= isset($websiteIds[0]) ? $websiteIds[0] : 1;
@@ -307,6 +314,7 @@ USAGE;
     * 
      */
     private function curlResource($data, $size="small"){
+    	// echo '@Magento_Product_Import_Script->curlResource()'.PHP_EOL;
     	if(!$this->_argname[1] ){ return false; }
     	$resourceUrl 		= $this->_argname[1];
     	$fullpath 			= 'media/catalog/product'.$data;
@@ -331,20 +339,23 @@ USAGE;
     	if($ch = curl_init($resourceUrl.$fullpath)){
     		$fp                 = fopen($newPath,'wb');
     		if($fp):
-    			curl_setopt($ch,CURLOPT_RETURNTRANSFER,TRUE);
+    			curl_setopt($ch,CURLOPT_RETURNTRANSFER,1);
 				curl_setopt($ch,CURLOPT_FILE,$fp);
 				curl_setopt($ch,CURLOPT_HEADER,0);
 				if(curl_exec($ch)){
 					$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 					if($httpCode == 404){
+						unlink($newPath);
 						echo $resourceUrl.$fullpath . " returned a 404".PHP_EOL;
 						return false;
 					}
 					if(!fclose($fp)):
+						unlink($newPath);
 						echo "could not create file ".$fullpath.". Please, check directory permissions.".PHP_EOL;
 						return false;
 					endif;
 				}else{
+					unlink($newPath);
 					echo "could not resolve ".$resourceUrl.$fullpath.PHP_EOL;
 					return false;
 				}
@@ -363,6 +374,7 @@ USAGE;
     * 
      */
     private function getProductViewMap(){
+    	// echo '@Magento_Product_Import_Script->getProductViewMap()'.PHP_EOL;
     	$map 		= array(
     		'websites' 		=> array(
     			'base' 		=> 'shambhala',
@@ -380,6 +392,7 @@ USAGE;
 	* 
 	 */
     private function getLocalViews(){
+    	// echo '@Magento_Product_Import_Script->getLocalViews()'.PHP_EOL;
     	$localViews			= array();
     	foreach(Mage::app()->getWebsites() as $website):
     		$localViews[$website->getCode()] 	  = isset($localViews[$website->getCode()]) ? $localViews[$website->getCode()] : array(
@@ -409,6 +422,7 @@ USAGE;
 	* 
 	 */
     private function getFileHandle($fileHandle=false){
+    	// echo '@Magento_Product_Import_Script->getFileHandle()'.PHP_EOL;
     	$importFile			= isset($fileHandle) ? $fileHandle : './product_import.csv';
     	if(!file_exists($importFile) || !$handle	= fopen($importFile,'r')):
 			return false;
@@ -423,6 +437,7 @@ USAGE;
 	* 
 	 */
     private function buildProductDataFromCSV($handle){
+    	// echo '@Magento_Product_Import_Script->buildProductDataFromCSV()'.PHP_EOL;
     	$headerRows					= array();
 		$row = 1;
 		$skuIndex;
@@ -459,7 +474,7 @@ USAGE;
 			$row++;
 		}
 		$productData 					= $this->validateProductData(array_values($dump));
-		$this->productData 			= $productData;
+		$this->productData 				= $productData;
 		// cleanup memory
 		unset($headerRows);
 		unset($productData);
@@ -473,14 +488,20 @@ USAGE;
 	* 
 	 */
     private function validateProductData($productData = array()){
+    	// echo '@Magento_Product_Import_Script->validateProductData()'.PHP_EOL;
     	$invalid						= array();
     	foreach($productData as $i=>$data ):
-    		$productData[$i]['store']		= isset($data['store']) ? $data['store'] : $iDefaultStoreId = Mage::app()->getWebsite()->getDefaultGroup()->getDefaultStoreId();
-    		$productData[$i]['sku_type']	= 0;
-    		$productData[$i]['status']		= isset($data['status']) ? $data['status'] : 0;
-    		$required 						= $this->getRequiredAttributes($data['attribute_set']);
-    		$fail 							= array('attribute_set','type','sku','description','short_description','name','status','visibility','tax_class_id');
-    		$errors 						= array();
+    		$productData[$i]['store']				= isset($data['store']) ? $data['store'] : Mage::app()->getWebsite()->getDefaultGroup()->getDefaultStoreId();
+    		$productData[$i]['sku_type']			= 0;
+  			$data['status'] 						= $data['status'] !== 0 ? (int)1 : (int)0;
+  			$productData[$i]['status']				= $data['status'];
+  			$productData[$i] 						= $this->setUpStockData($this->setUpPriceData($productData[$i]));
+  			$data['short_description'] 				= isset($data['short_description']) ? $data['short_description'] : $data['name'];
+  			$productData[$i]['short_description'] 	= $data['short_description'];
+    		$required 								= $this->getRequiredAttributes($data['attribute_set']);
+    		$fail 									= array('attribute_set','type','sku','description','short_description','name','status','visibility','tax_class_id');
+    		$errors 								= array();
+
     		foreach($required as $k=>$code):
     			if(!isset($data[$code])):
     				if(in_array($code, $fail)):
@@ -513,6 +534,7 @@ USAGE;
 	* 
 	 */
     private function setUpShippingData($productData=array()){
+    	// echo '@Magento_Product_Import_Script->setUpShippingData()'.PHP_EOL;
     	$productData['shipment_type']			 	= isset($productData['shipment_type']) ? $productData['shipment_type'] : Mage_Catalog_Model_Product_Type_Abstract::SHIPMENT_SEPARATELY;
     	return $productData;
     }
@@ -524,6 +546,7 @@ USAGE;
 	* 
 	 */
     private function setUpPriceData($productData=array()){
+    	// echo '@Magento_Product_Import_Script->setUpPriceData()'.PHP_EOL;
     	$productData['price']						= isset($productData['price']) ? $productData['price'] : 0;
     	$productData['price_type']					= isset($productData['price_type']) ? $productData['price_type'] : 1;
     	$productData['price_view']					= isset($productData['price_view']) ? $productData['price_view'] : $iDefaultStoreId = Mage::app()->getWebsite()->getDefaultGroup()->getDefaultStoreId();
@@ -537,6 +560,7 @@ USAGE;
 	* 
 	 */
     private function setUpStockData($data=array()){
+    	// echo '@Magento_Product_Import_Script->setUpStockData()'.PHP_EOL;
 		if(!isset($data['stockData'])):
 		$stockData 						= array(
     			'manage_stock'				=> isset($data['manage_stock']) ? $data['manage_stock'] : 0,
@@ -562,6 +586,7 @@ USAGE;
 	* 
 	 */
     private function getRequiredAttributes($attributeSetName="Default"){
+    	// echo '@Magento_Product_Import_Script->getRequiredAttributes()'.PHP_EOL;
     	$entityTypeId 				= Mage::getModel('eav/entity')->setType('catalog_product')->getTypeId();
     	$attributeSetId = Mage::getModel('eav/entity_attribute_set')->getCollection()->setEntityTypeFilter($entityTypeId)->addFieldToFilter('attribute_set_name', $attributeSetName)->getFirstItem()->getAttributeSetId();
     	$attributes = Mage::getModel('catalog/product_attribute_api')->items($attributeSetId);
@@ -581,6 +606,7 @@ USAGE;
     * 
      */
     private function convertFieldName($str) {
+    	// echo '@Magento_Product_Import_Script->convertFieldName()'.PHP_EOL;
         $str_parts = explode('_', $str);
 		$class = '';
 		foreach ($str_parts as $part) {
